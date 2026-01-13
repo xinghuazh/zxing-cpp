@@ -4,9 +4,12 @@
 */
 // SPDX-License-Identifier: Apache-2.0
 
-#include "CreateBarcode.h"
+#include "BitMatrix.h"
+#ifdef ZXING_EXPERIMENTAL_API
 #include "WriteBarcode.h"
-#include "Version.h"
+#else
+#include "MultiFormatWriter.h"
+#endif
 
 #include <vector>
 
@@ -16,33 +19,35 @@ using namespace std::literals;
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#ifdef ZXING_EXPERIMENTAL_API
 void savePng(ImageView iv, BarcodeFormat format)
 {
 	stbi_write_png((ToString(format) + ".png"s).c_str(), iv.width(), iv.height(), iv.pixStride(), iv.data(), iv.rowStride());
 }
+#else
+void savePng(const BitMatrix& matrix, BarcodeFormat format)
+{
+	auto bitmap = ToMatrix<uint8_t>(matrix);
+	stbi_write_png((ToString(format) + ".png"s).c_str(), bitmap.width(), bitmap.height(), 1, bitmap.data(), 0);
+}
+#endif
 
 int main()
 {
 	std::string text = "http://www.google.com/";
 	for (auto format : {
-#ifdef ZXING_ENABLE_AZTEC
 		BarcodeFormat::Aztec,
-#endif
-#ifdef ZXING_ENABLE_DATAMATRIX
 		BarcodeFormat::DataMatrix,
-#endif
-#ifdef ZXING_ENABLE_PDF417
 		BarcodeFormat::PDF417,
-#endif
-#ifdef ZXING_ENABLE_QRCODE
-		BarcodeFormat::QRCode,
-#endif
-	})
+		BarcodeFormat::QRCode })
 	{
+#ifdef ZXING_EXPERIMENTAL_API
 		savePng(CreateBarcodeFromText(text, format).symbol(), format);
+#else
+		savePng(MultiFormatWriter(format).encode(text, 200, 200), format);
+#endif
 	}
 
-#ifdef ZXING_ENABLE_1D
 	text = "012345678901234567890123456789";
 	using FormatSpecs = std::vector<std::pair<BarcodeFormat, size_t>>;
 	for (const auto& [format, length] : FormatSpecs({
@@ -54,11 +59,13 @@ int main()
 		{BarcodeFormat::EAN13, 12},
 		{BarcodeFormat::ITF, 0},
 		{BarcodeFormat::UPCA, 11},
-		{BarcodeFormat::UPCE, 7}
-	}))
+		{BarcodeFormat::UPCE, 7} }))
 	{
 		auto input = length > 0 ? text.substr(0, length) : text;
-		savePng(WriteBarcodeToImage(CreateBarcodeFromText(input, format)), format);
-	}
+#ifdef ZXING_EXPERIMENTAL_API
+		savePng(CreateBarcodeFromText(input, format).symbol(), format);
+#else
+		savePng(MultiFormatWriter(format).encode(input, 100, 100), format);
 #endif
+	}
 }

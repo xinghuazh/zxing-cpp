@@ -10,6 +10,7 @@ fn main() -> miette::Result<()> {
 			.define("ZXING_EXPERIMENTAL_API", "ON")
 			.define("ZXING_C_API", "ON")
 			.define("ZXING_USE_BUNDLED_ZINT", "ON")
+			.define("CMAKE_CXX_STANDARD", "20")
 			.build();
 		dst.push("lib");
 		println!("cargo:rustc-link-search=native={}", dst.display());
@@ -23,7 +24,7 @@ fn main() -> miette::Result<()> {
 			}
 		}
 	} else if let Ok(lib_dir) = env::var("ZXING_CPP_LIB_DIR") {
-		println!("cargo:rustc-link-search=native={lib_dir}");
+		println!("cargo:rustc-link-search=native={}", lib_dir);
 		println!("cargo:rustc-link-lib=dylib=ZXing");
 	} else {
 		// panic!("ZXing library not found. Use feature 'bundled' or set environment variabale ZXING_CPP_LIB_DIR.")

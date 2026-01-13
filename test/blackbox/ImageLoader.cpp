@@ -12,7 +12,6 @@
 #include <array>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <stdexcept>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -50,17 +49,16 @@ public:
 };
 
 std::map<fs::path, STBImage> cache;
-std::mutex cacheMutex;
 
 void ImageLoader::clearCache()
 {
-	std::lock_guard lock(cacheMutex);
 	cache.clear();
 }
 
 const ImageView& ImageLoader::load(const fs::path& imgPath)
 {
-	std::lock_guard lock(cacheMutex);
+	thread_local std::unique_ptr<BinaryBitmap> localAverage, threshold;
+
 	auto& binImg = cache[imgPath];
 	if (!binImg)
 		binImg.load(imgPath);

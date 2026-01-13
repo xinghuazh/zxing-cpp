@@ -17,10 +17,10 @@ NSString *stringToNSString(const std::string &text) {
     return [[NSString alloc]initWithBytes:text.data() length:text.size() encoding:NSUTF8StringEncoding];
 }
 
-ZXIGTIN *getGTIN(const Barcode &barcode) {
+ZXIGTIN *getGTIN(const Result &result) {
     try {
-        auto country = GTIN::LookupCountryIdentifier(barcode.text(TextMode::Plain), barcode.format());
-        auto addOn = GTIN::EanAddOn(barcode);
+        auto country = GTIN::LookupCountryIdentifier(result.text(TextMode::Plain), result.format());
+        auto addOn = GTIN::EanAddOn(result);
         return country.empty()
             ? nullptr
             : [[ZXIGTIN alloc]initWithCountry:stringToNSString(country)

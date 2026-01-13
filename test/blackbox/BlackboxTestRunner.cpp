@@ -6,17 +6,16 @@
 
 #include "BlackboxTestRunner.h"
 
-#include "ByteArray.h"
 #include "ImageLoader.h"
 #include "ReadBarcode.h"
 #include "Utf.h"
 #include "ZXAlgorithms.h"
-#include "StdPrint.h"
-#include "Version.h"
+
+#include <fmt/core.h>
+#include <fmt/ostream.h>
 
 #include <chrono>
 #include <exception>
-#include <format>
 #include <fstream>
 #include <map>
 #include <optional>
@@ -25,17 +24,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#ifdef __GNUC__
-// turns out that libstdc++ is depending on TBB without even linking against it, so this fails to link :-/
-#undef __cpp_lib_execution
-#endif
-
-#ifdef __cpp_lib_execution
-#include <execution>
-#else
-#include <future>
-#endif
 
 namespace ZXing::Test {
 
@@ -97,7 +85,7 @@ static std::string getBarcodeValue(const Barcode& barcode, const std::string& ke
 	if (key == "readerInit")
 		return barcode.readerInit() ? "true" : "false";
 
-	return std::format("***Unknown key '{}'***", key);
+	return fmt::format("***Unknown key '{}'***", key);
 }
 
 // Read ".result.txt" file contents `expected` with lines "key=value" and compare to `actual`
@@ -133,7 +121,7 @@ static bool compareResult(const Barcode& barcode, const std::string& expected, s
 static std::string checkResult(const fs::path& imgPath, std::string_view expectedFormat, const Barcode& barcode)
 {
 	if (auto format = ToString(barcode.format()); expectedFormat != format)
-		return std::format("Format mismatch: expected '{}' but got '{}'", expectedFormat, format);
+		return fmt::format("Format mismatch: expected '{}' but got '{}'", expectedFormat, format);
 
 	auto readFile = [imgPath](const char* ending) {
 		std::ifstream ifs(fs::path(imgPath).replace_extension(ending), std::ios::binary);
@@ -143,19 +131,19 @@ static std::string checkResult(const fs::path& imgPath, std::string_view expecte
 	if (auto expected = readFile(".result.txt")) {
 		std::string actual;
 		if (!compareResult(barcode, *expected, actual))
-			return std::format("Result mismatch: expected\n{} but got\n{}", *expected, actual);
+			return fmt::format("Result mismatch: expected\n{} but got\n{}", *expected, actual);
 	}
 
 	if (auto expected = readFile(".txt")) {
 		expected = EscapeNonGraphical(*expected);
 		auto utf8Result = barcode.text(TextMode::Escaped);
-		return utf8Result != *expected ? std::format("Content mismatch: expected '{}' but got '{}'", *expected, utf8Result) : "";
+		return utf8Result != *expected ? fmt::format("Content mismatch: expected '{}' but got '{}'", *expected, utf8Result) : "";
 	}
 
 	if (auto expected = readFile(".bin")) {
 		ByteArray binaryExpected(*expected);
 		return barcode.bytes() != binaryExpected
-				   ? std::format("Content mismatch: expected '{}' but got '{}'", ToHex(binaryExpected), ToHex(barcode.bytes()))
+				   ? fmt::format("Content mismatch: expected '{}' but got '{}'", ToHex(binaryExpected), ToHex(barcode.bytes()))
 				   : "";
 	}
 
@@ -186,25 +174,25 @@ static std::string printPositiveTestStats(int imageCount, const TestCase::TC& tc
 {
 	int passCount = imageCount - Size(tc.misReadFiles) - Size(tc.notDetectedFiles);
 
-	std::print(" | {}: {:3} of {:3}, misread {} of {}", tc.name, passCount, tc.minPassCount, Size(tc.misReadFiles), tc.maxMisreads);
+	fmt::print(" | {}: {:3} of {:3}, misread {} of {}", tc.name, passCount, tc.minPassCount, Size(tc.misReadFiles), tc.maxMisreads);
 
 	std::string failures;
 	if (passCount < tc.minPassCount && !tc.notDetectedFiles.empty()) {
-		failures += std::format("    Not detected ({}):", tc.name);
+		failures += fmt::format("    Not detected ({}):", tc.name);
 		for (const auto& f : tc.notDetectedFiles)
-			failures += std::format(" {}", f.filename().string());
+			failures += fmt::format(" {}", f.filename().string());
 		failures += "\n";
 		failed += tc.minPassCount - passCount;
 	}
 
 	extra += std::max(0, passCount - tc.minPassCount);
 	if (passCount > tc.minPassCount)
-		failures += std::format("    Unexpected detections ({}): {}\n", tc.name, passCount - tc.minPassCount);
+		failures += fmt::format("    Unexpected detections ({}): {}\n", tc.name, passCount - tc.minPassCount);
 
 	if (Size(tc.misReadFiles) > tc.maxMisreads) {
-		failures += std::format("    Read error ({}):", tc.name);
+		failures += fmt::format("    Read error ({}):", tc.name);
 		for (const auto& [path, error] : tc.misReadFiles)
-			failures += std::format("      {}: {}\n", path.filename().string(), error);
+			failures += fmt::format("      {}: {}\n", path.filename().string(), error);
 		failed += Size(tc.misReadFiles) - tc.maxMisreads;
 	}
 	return failures;
@@ -230,48 +218,27 @@ static void doRunTests(const fs::path& directory, std::string_view format, int t
 	auto folderName = directory.stem();
 
 	if (Size(imgPaths) != totalTests)
-		std::println("TEST {} => Expected number of tests: {}, got: {} => FAILED", folderName.string(), totalTests, imgPaths.size());
+		fmt::print("TEST {} => Expected number of tests: {}, got: {} => FAILED\n", folderName.string(), totalTests, imgPaths.size());
 
 	for (auto& test : tests) {
-		std::print("{:20} @ {:3}, {:3}", folderName.string(), test.rotation, Size(imgPaths));
+		fmt::print("{:20} @ {:3}, {:3}", folderName.string(), test.rotation, Size(imgPaths));
 		std::vector<int> times;
 		std::string failures;
 		for (auto tc : test.tc) {
 			if (tc.name.empty())
 				break;
 			auto startTime = std::chrono::steady_clock::now();
-			opts.tryDownscale(tc.name == "slow_");
-			opts.downscaleFactor(2);
-			opts.downscaleThreshold(180);
-			opts.tryHarder(tc.name == "slow");
-			opts.tryRotate(tc.name == "slow");
-			opts.tryInvert(tc.name == "slow");
-			opts.isPure(tc.name == "pure");
+			opts.setTryDownscale(tc.name == "slow_");
+			opts.setDownscaleFactor(2);
+			opts.setDownscaleThreshold(180);
+			opts.setTryHarder(tc.name == "slow");
+			opts.setTryRotate(tc.name == "slow");
+			opts.setTryInvert(tc.name == "slow");
+			opts.setIsPure(tc.name == "pure");
 			if (opts.isPure())
-				opts.binarizer(Binarizer::FixedThreshold);
-#if 1
-#ifdef __cpp_lib_execution
-			std::vector<Barcode> barcodes(imgPaths.size());
-			std::transform(std::execution::par, imgPaths.begin(), imgPaths.end(), barcodes.begin(), [&](const fs::path& imgPath) {
-				return ReadBarcode(ImageLoader::load(imgPath).rotated(test.rotation), opts);
-			});
-			for (size_t i = 0; i < imgPaths.size(); ++i) {
-				const auto& imgPath = imgPaths[i];
-				const auto& barcode = barcodes[i];
-#else
-			auto futures = std::vector<std::pair<fs::path, std::future<Barcode>>>{};
-			for (const auto& imgPath : imgPaths) {
-				futures.push_back(std::make_pair(imgPath, std::async(std::launch::async, [&](const fs::path& path) {
-					return ReadBarcode(ImageLoader::load(path).rotated(test.rotation), opts);
-				}, imgPath)));
-			}
-			for (auto& [imgPath, fut] : futures) {
-				auto barcode = fut.get();
-#endif // __cpp_lib_execution
-#else
+				opts.setBinarizer(Binarizer::FixedThreshold);
 			for (const auto& imgPath : imgPaths) {
 				auto barcode = ReadBarcode(ImageLoader::load(imgPath).rotated(test.rotation), opts);
-#endif
 				if (barcode.isValid()) {
 					auto error = checkResult(imgPath, format, barcode);
 					if (!error.empty())
@@ -284,9 +251,9 @@ static void doRunTests(const fs::path& directory, std::string_view format, int t
 			times.push_back(timeSince(startTime));
 			failures += printPositiveTestStats(Size(imgPaths), tc);
 		}
-		std::println(" | time: {:3} vs {:3} ms", times.front(), times.back());
+		fmt::print(" | time: {:3} vs {:3} ms\n", times.front(), times.back());
 		if (!failures.empty())
-			std::println("\n{}", failures);
+			fmt::print("\n{}\n", failures);
 	}
 }
 
@@ -295,7 +262,7 @@ static Barcode readMultiple(const std::vector<fs::path>& imgPaths, std::string_v
 	Barcodes allBarcodes;
 	for (const auto& imgPath : imgPaths) {
 		auto barcodes = ReadBarcodes(ImageLoader::load(imgPath),
-									 ReaderOptions().formats(BarcodeFormatFromString(format)).tryDownscale(false));
+									 ReaderOptions().setFormats(BarcodeFormatFromString(format)).setTryDownscale(false));
 		allBarcodes.insert(allBarcodes.end(), barcodes.begin(), barcodes.end());
 	}
 
@@ -316,11 +283,11 @@ static void doRunStructuredAppendTest(const fs::path& directory, std::string_vie
 	}
 
 	if (Size(imageGroups) != totalTests)
-		std::println("TEST {} => Expected number of tests: {}, got: {} => FAILED", folderName.string(), totalTests,
-					 imageGroups.size());
+		fmt::print("TEST {} => Expected number of tests: {}, got: {} => FAILED\n", folderName.string(), totalTests,
+				   imageGroups.size());
 
 	for (auto& test : tests) {
-		std::print("{:20} @ {:3}, {:3}", folderName.string(), test.rotation, Size(imgPaths));
+		fmt::print("{:20} @ {:3}, {:3}", folderName.string(), test.rotation, Size(imgPaths));
 		auto tc = test.tc[0];
 		auto startTime = std::chrono::steady_clock::now();
 
@@ -336,9 +303,9 @@ static void doRunStructuredAppendTest(const fs::path& directory, std::string_vie
 		}
 
 		auto failures = printPositiveTestStats(Size(imageGroups), tc);
-		std::println(" | time: {:3} ms", timeSince(startTime));
+		fmt::print(" | time: {:3} ms\n", timeSince(startTime));
 		if (!failures.empty())
-			std::println("\n{}", failures);
+			fmt::print("\n{}\n", failures);
 	}
 }
 
@@ -367,7 +334,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 		auto startTime = std::chrono::steady_clock::now();
 
 		// clang-format off
-#ifdef ZXING_ENABLE_AZTEC
+
 		// Expected failures:
 		// abc-inverted.png (fast) - fast does not try inverted
 		// az-thick.png (pure)
@@ -385,8 +352,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{ 21, 21, 180 },
 			{ 21, 21, 270 },
 		});
-#endif
-#ifdef ZXING_ENABLE_DATAMATRIX
+
 		runTests("datamatrix-1", "DataMatrix", 29, {
 			{ 29, 29, 0   },
 			{  0, 27, 90  },
@@ -416,8 +382,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{  0, 21, 270 },
 			{ 19, 0, pure },
 		});
-#endif
-#ifdef ZXING_ENABLE_1D
+
 		runTests("dxfilmedge-1", "DXFilmEdge", 3, {
 			{ 1, 3, 0 },
 			{ 0, 3, 180 },
@@ -438,9 +403,9 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{ 4, 4, 180 },
 		});
 
-		runTests("code39-2", "Code39", 3, {
-			{ 3, 3, 0   },
-			{ 3, 3, 180 },
+		runTests("code39-2", "Code39", 2, {
+			{ 2, 2, 0   },
+			{ 2, 2, 180 },
 		});
 
 		runTests("code39-3", "Code39", 12, {
@@ -497,7 +462,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 		runTests("ean13-extension-1", "EAN-13", 5, {
 			{ 3, 5, 0 },
 			{ 3, 5, 180 },
-		}, ReaderOptions().eanAddOnSymbol(EanAddOnSymbol::Require));
+		}, ReaderOptions().setEanAddOnSymbol(EanAddOnSymbol::Require));
 
 		runTests("itf-1", "ITF", 14, {
 			{ 13, 14, 0   },
@@ -509,35 +474,43 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{ 6, 6, 180 },
 		});
 
+		runTests("maxicode-1", "MaxiCode", 9, {
+			{ 9, 9, 0 },
+		});
+
+		runTests("maxicode-2", "MaxiCode", 4, {
+			{ 0, 0, 0 },
+		});
+
 		runTests("upca-1", "UPC-A", 12, {
 			{ 10, 12, 0   },
 			{ 11, 12, 180 },
-		}, ReaderOptions().formats(BarcodeFormat::UPCA));
+		});
 
 		runTests("upca-2", "UPC-A", 36, {
 			{ 17, 22, 0   },
 			{ 17, 22, 180 },
-		}, ReaderOptions().formats(BarcodeFormat::UPCA));
+		});
 
 		runTests("upca-3", "UPC-A", 21, {
 			{ 7, 11, 0   },
 			{ 8, 11, 180 },
-		}, ReaderOptions().formats(BarcodeFormat::UPCA));
+		});
 
 		runTests("upca-4", "UPC-A", 19, {
 			{ 8, 12, 0, 1, 0 },
 			{ 9, 12, 0, 1, 180 },
-		}, ReaderOptions().formats(BarcodeFormat::UPCA));
+		});
 
 		runTests("upca-5", "UPC-A", 32, {
 			{ 18, 20, 0   },
 			{ 18, 20, 180 },
-		}, ReaderOptions().formats(BarcodeFormat::UPCA));
+		});
 
 		runTests("upca-extension-1", "UPC-A", 6, {
 			{ 4, 4, 0 },
 			{ 3, 4, 180 },
-		}, ReaderOptions().eanAddOnSymbol(EanAddOnSymbol::Require).formats(BarcodeFormat::UPCA));
+		}, ReaderOptions().setEanAddOnSymbol(EanAddOnSymbol::Require));
 
 		runTests("upce-1", "UPC-E", 3, {
 			{ 3, 3, 0   },
@@ -598,17 +571,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{ 2, 2, 180 },
 			{ 2, 0, pure },
 		});
-#endif
-#ifdef ZXING_ENABLE_MAXICODE
-		runTests("maxicode-1", "MaxiCode", 9, {
-			{ 9, 9, 0 },
-		});
 
-		runTests("maxicode-2", "MaxiCode", 4, {
-			{ 0, 0, 0 },
-		});
-#endif
-#ifdef ZXING_ENABLE_QRCODE
 		runTests("qrcode-1", "QRCode", 16, {
 			{ 16, 16, 0   },
 			{ 16, 16, 90  },
@@ -616,12 +579,12 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{ 16, 16, 270 },
 		});
 
-		runTests("qrcode-2", "QRCode", 53, {
-			{ 47, 50, 0   },
-			{ 47, 50, 90  },
-			{ 47, 50, 180 },
-			{ 47, 50, 270 },
-			{ 23, 1, pure }, // the misread is the 'outer' symbol in 16.png
+		runTests("qrcode-2", "QRCode", 51, {
+			{ 45, 48, 0   },
+			{ 45, 48, 90  },
+			{ 45, 48, 180 },
+			{ 45, 48, 270 },
+			{ 22, 1, pure }, // the misread is the 'outer' symbol in 16.png
 		});
 
 		runTests("qrcode-3", "QRCode", 28, {
@@ -672,8 +635,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 			{  2,  3, 270 },
 			{  2,  2, pure },
 		});
-#endif
-#ifdef ZXING_ENABLE_PDF417
+
 		runTests("pdf417-1", "PDF417", 17, {
 			{ 16, 17, 0   },
 			{  1, 17, 90  },
@@ -700,7 +662,7 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 		runStructuredAppendTest("pdf417-4", "PDF417", 3, {
 			{ 3, 3, 0   },
 		});
-#endif
+
 		runTests("falsepositives-1", "None", 27, {
 			{ 0, 0, 0, 0, 0   },
 			{ 0, 0, 0, 0, 90  },
@@ -720,21 +682,21 @@ int runBlackBoxTests(const fs::path& testPathPrefix, const std::set<std::string>
 
 		int totalTime = timeSince(startTime);
 		int decodeTime = totalTime - totalImageLoadTime;
-		std::println("load time:   {} ms.", totalImageLoadTime);
-		std::println("decode time: {} ms.", decodeTime);
-		std::println("total time:  {} ms.", totalTime);
+		fmt::print("load time:   {} ms.\n", totalImageLoadTime);
+		fmt::print("decode time: {} ms.\n", decodeTime);
+		fmt::print("total time:  {} ms.\n", totalTime);
 		if (failed)
-			std::println("WARNING: {} tests failed.", failed);
+			fmt::print("WARNING: {} tests failed.\n", failed);
 		if (extra)
-			std::println("INFO: {} tests succeeded unexpectedly.", extra);
+			fmt::print("INFO: {} tests succeeded unexpectedly.\n", extra);
 
 		return failed;
 	}
 	catch (const std::exception& e) {
-		std::println("{}", e.what());
+		fmt::print("{}\n", e.what());
 	}
 	catch (...) {
-		std::println("Internal error");
+		fmt::print("Internal error\n");
 	}
 	return -1;
 }

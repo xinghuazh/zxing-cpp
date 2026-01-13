@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 	ZXingQt::registerQmlAndMetaTypes();
 
 	QGuiApplication app(argc, argv);
-	app.setApplicationName(QStringLiteral("ZXingQtCamReader"));
+	app.setApplicationName("ZXingQtCamReader");
 	QQmlApplicationEngine engine;
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 	engine.load(QUrl(QStringLiteral("qrc:/ZXingQt5CamReader.qml")));

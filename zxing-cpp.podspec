@@ -14,13 +14,9 @@ Pod::Spec.new do |s|
     :tag => "v#{s.version}"
   }
   s.module_name = 'ZXingCpp'
-  s.platform = :ios, '12.0'
+  s.platform = :ios, '11.0'
   s.library = ['c++']
-  s.compiler_flags = [
-    '-I../../wrappers/ios/Sources/Wrapper',
-    '-DZXING_INTERNAL',
-    '-Wno-comma'
-  ]
+  s.compiler_flags = '-DZXING_READERS'
   s.pod_target_xcconfig = {
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20'
   }

@@ -18,6 +18,7 @@
 namespace ZXing {
 
 class BitArray;
+class ByteMatrix;
 
 /**
  * @brief A simple, fast 2D array of bits.

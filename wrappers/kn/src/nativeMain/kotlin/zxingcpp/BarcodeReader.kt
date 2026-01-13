@@ -115,9 +115,8 @@ enum class TextMode(internal val cValue: ZXing_TextMode) {
 	Plain(ZXing_TextMode_Plain),
 	ECI(ZXing_TextMode_ECI),
 	HRI(ZXing_TextMode_HRI),
-	Escaped(ZXing_TextMode_Escaped),
 	Hex(ZXing_TextMode_Hex),
-	HexECI(ZXing_TextMode_HexECI);
+	Escaped(ZXing_TextMode_Escaped);
 
 	companion object {
 		fun fromCValue(cValue: ZXing_TextMode): TextMode {

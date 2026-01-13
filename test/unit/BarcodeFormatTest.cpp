@@ -13,8 +13,10 @@ using namespace ZXing;
 
 TEST(BarcodeFormatTest, BarcodeFormat)
 {
-	EXPECT_EQ(ToString(BarcodeFormat::QRCode), "QRCode");
-	EXPECT_EQ(ToString(BarcodeFormat::None), "None");
+	using namespace std::literals;
+
+	EXPECT_EQ(ToString(BarcodeFormat::QRCode), "QRCode"s);
+	EXPECT_EQ(ToString(BarcodeFormat::None), "None"s);
 	EXPECT_EQ(ToString(BarcodeFormat::DataMatrix | BarcodeFormat::EAN13), "DataMatrix|EAN-13");
 
 	EXPECT_EQ(BarcodeFormat::EAN8, BarcodeFormatFromString("EAN_8"));
@@ -30,7 +32,6 @@ TEST(BarcodeFormatTest, BarcodeFormat)
 	EXPECT_EQ(formats, BarcodeFormatsFromString("EAN-8, ITF"));
 	EXPECT_EQ(formats, BarcodeFormatsFromString("EAN-8 ITF"));
 	EXPECT_EQ(formats, BarcodeFormatsFromString("ean8|itf"));
-	EXPECT_EQ(formats, BarcodeFormatsFromString("[EAN-8,, ITF]"));
 
 	auto f1 = std::vector<BarcodeFormat>(formats.begin(), formats.end());
 	auto f2 = std::vector<BarcodeFormat>{BarcodeFormat::EAN8, BarcodeFormat::ITF};

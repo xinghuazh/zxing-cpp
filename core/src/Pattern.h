@@ -5,12 +5,12 @@
 
 #pragma once
 
+#include "BitHacks.h"
 #include "Range.h"
 #include "ZXAlgorithms.h"
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -184,7 +184,7 @@ double IsPattern(const PatternView& view, const FixedPattern<LEN, SUM, false>& p
 		if (minQuietZone && spaceInPixel < minQuietZone * modSize.space)
 			return 0;
 
-		const BarAndSpace<double> thr = {modSize[0] * .75 + .5, modSize[1] * .5 + .5};
+		const BarAndSpace<double> thr = {modSize[0] * .75 + .5, modSize[1] / (2 + (LEN < 6)) + .5};
 
 		for (int x = 0; x < LEN; ++x)
 			if (std::abs(view[x] - pattern[x] * modSize[x]) > thr[x])
@@ -378,14 +378,14 @@ void GetPatternRow(Range<I> b_row, PatternRow& p_row)
 	if constexpr (std::is_pointer_v<I> && sizeof(I) == 8 && sizeof(std::remove_pointer_t<I>) == 1) {
 		using simd_t = uint64_t;
 		while (bitPos < bitPosEnd - sizeof(simd_t)) {
-			auto asSimd0 = LoadU<simd_t>(bitPos);
-			auto asSimd1 = LoadU<simd_t>(bitPos + 1);
+			auto asSimd0 = BitHacks::LoadU<simd_t>(bitPos);
+			auto asSimd1 = BitHacks::LoadU<simd_t>(bitPos + 1);
 			auto z = asSimd0 ^ asSimd1;
 			if (z) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-				int step = std::countr_zero(z) / 8 + 1;
+				int step = BitHacks::NumberOfTrailingZeros(z) / 8 + 1;
 #else
-				int step = std::countl_zero(z) / 8 + 1;
+				int step = BitHacks::NumberOfLeadingZeros(z) / 8 + 1;
 #endif
 				(*intPos++) += step;
 				bitPos += step;

@@ -6,10 +6,8 @@
 #pragma once
 
 #include "BarcodeFormat.h"
-#include "CreateBarcode.h"
 #include "ReadBarcode.h"
 #include "WriteBarcode.h"
-#include "Version.h"
 
 namespace ZXing {
 

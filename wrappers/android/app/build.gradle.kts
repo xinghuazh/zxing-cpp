@@ -3,10 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
-// Determine the Java version from the current JVM running Gradle.
-// This was the only way to make it compile on axxels Android Studio based dev-env as well as on the CI build.
-val jvmVersion = JavaVersion.toVersion(System.getProperty("java.version"))
-
 android {
     namespace = "zxingcpp.app"
     defaultConfig {
@@ -27,12 +23,12 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = jvmVersion
-        targetCompatibility = jvmVersion
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
-//  kotlin {
-//      jvmToolchain(17) // defaults to the JDK version used by Gradle
-//  }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
     lint {
         disable.add("UnsafeExperimentalUsageError")
     }

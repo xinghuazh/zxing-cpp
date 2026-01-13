@@ -20,8 +20,10 @@ typedef ZXing::ImageView ZXing_ImageView;
 typedef ZXing::Image ZXing_Image;
 typedef ZXing::ReaderOptions ZXing_ReaderOptions;
 
+#ifdef ZXING_EXPERIMENTAL_API
 typedef ZXing::CreatorOptions ZXing_CreatorOptions;
 typedef ZXing::WriterOptions ZXing_WriterOptions;
+#endif
 
 extern "C"
 {
@@ -185,9 +187,6 @@ bool ZXing_Barcode_hasECI(const ZXing_Barcode* barcode);
 bool ZXing_Barcode_isInverted(const ZXing_Barcode* barcode);
 bool ZXing_Barcode_isMirrored(const ZXing_Barcode* barcode);
 int ZXing_Barcode_lineCount(const ZXing_Barcode* barcode);
-int ZXing_Barcode_sequenceIndex(const ZXing_Barcode* barcode);
-int ZXing_Barcode_sequenceSize(const ZXing_Barcode* barcode);
-char* ZXing_Barcode_sequenceId(const ZXing_Barcode* barcode);
 
 void ZXing_Barcode_delete(ZXing_Barcode* barcode);
 void ZXing_Barcodes_delete(ZXing_Barcodes* barcodes);
@@ -220,9 +219,8 @@ typedef enum
 	ZXing_TextMode_Plain,
 	ZXing_TextMode_ECI,
 	ZXing_TextMode_HRI,
-	ZXing_TextMode_Escaped,
 	ZXing_TextMode_Hex,
-	ZXing_TextMode_HexECI,
+	ZXing_TextMode_Escaped,
 } ZXing_TextMode;
 
 ZXing_ReaderOptions* ZXing_ReaderOptions_new();
@@ -232,9 +230,6 @@ void ZXing_ReaderOptions_setTryHarder(ZXing_ReaderOptions* opts, bool tryHarder)
 void ZXing_ReaderOptions_setTryRotate(ZXing_ReaderOptions* opts, bool tryRotate);
 void ZXing_ReaderOptions_setTryInvert(ZXing_ReaderOptions* opts, bool tryInvert);
 void ZXing_ReaderOptions_setTryDownscale(ZXing_ReaderOptions* opts, bool tryDownscale);
-#ifdef ZXING_EXPERIMENTAL_API
-	void ZXing_ReaderOptions_setTryDenoise(ZXing_ReaderOptions* opts, bool tryDenoise);
-#endif
 void ZXing_ReaderOptions_setIsPure(ZXing_ReaderOptions* opts, bool isPure);
 void ZXing_ReaderOptions_setReturnErrors(ZXing_ReaderOptions* opts, bool returnErrors);
 void ZXing_ReaderOptions_setFormats(ZXing_ReaderOptions* opts, ZXing_BarcodeFormats formats);
@@ -248,9 +243,6 @@ bool ZXing_ReaderOptions_getTryHarder(const ZXing_ReaderOptions* opts);
 bool ZXing_ReaderOptions_getTryRotate(const ZXing_ReaderOptions* opts);
 bool ZXing_ReaderOptions_getTryInvert(const ZXing_ReaderOptions* opts);
 bool ZXing_ReaderOptions_getTryDownscale(const ZXing_ReaderOptions* opts);
-#ifdef ZXING_EXPERIMENTAL_API
-	bool ZXing_ReaderOptions_getTryDenoise(const ZXing_ReaderOptions* opts);
-#endif
 bool ZXing_ReaderOptions_getIsPure(const ZXing_ReaderOptions* opts);
 bool ZXing_ReaderOptions_getReturnErrors(const ZXing_ReaderOptions* opts);
 ZXing_BarcodeFormats ZXing_ReaderOptions_getFormats(const ZXing_ReaderOptions* opts);
@@ -267,6 +259,7 @@ int ZXing_ReaderOptions_getMaxNumberOfSymbols(const ZXing_ReaderOptions* opts);
 /** Note: opts is optional, i.e. it can be NULL, which will imply default settings. */
 ZXing_Barcodes* ZXing_ReadBarcodes(const ZXing_ImageView* iv, const ZXing_ReaderOptions* opts);
 
+#ifdef ZXING_EXPERIMENTAL_API
 
 /*
  * ZXing/WriteBarcode.h
@@ -278,8 +271,14 @@ void ZXing_CreatorOptions_delete(ZXing_CreatorOptions* opts);
 void ZXing_CreatorOptions_setFormat(ZXing_CreatorOptions* opts, ZXing_BarcodeFormat format);
 ZXing_BarcodeFormat ZXing_CreatorOptions_getFormat(const ZXing_CreatorOptions* opts);
 
-void ZXing_CreatorOptions_setOptions(ZXing_CreatorOptions* opts, const char* options);
-char* ZXing_CreatorOptions_getOptions(const ZXing_CreatorOptions* opts);
+void ZXing_CreatorOptions_setReaderInit(ZXing_CreatorOptions* opts, bool readerInit);
+bool ZXing_CreatorOptions_getReaderInit(const ZXing_CreatorOptions* opts);
+
+void ZXing_CreatorOptions_setForceSquareDataMatrix(ZXing_CreatorOptions* opts, bool forceSquareDataMatrix);
+bool ZXing_CreatorOptions_getForceSquareDataMatrix(const ZXing_CreatorOptions* opts);
+
+void ZXing_CreatorOptions_setEcLevel(ZXing_CreatorOptions* opts, const char* ecLevel);
+char* ZXing_CreatorOptions_getEcLevel(const ZXing_CreatorOptions* opts);
 
 
 ZXing_WriterOptions* ZXing_WriterOptions_new();
@@ -288,14 +287,17 @@ void ZXing_WriterOptions_delete(ZXing_WriterOptions* opts);
 void ZXing_WriterOptions_setScale(ZXing_WriterOptions* opts, int scale);
 int ZXing_WriterOptions_getScale(const ZXing_WriterOptions* opts);
 
+void ZXing_WriterOptions_setSizeHint(ZXing_WriterOptions* opts, int sizeHint);
+int ZXing_WriterOptions_getSizeHint(const ZXing_WriterOptions* opts);
+
 void ZXing_WriterOptions_setRotate(ZXing_WriterOptions* opts, int rotate);
 int ZXing_WriterOptions_getRotate(const ZXing_WriterOptions* opts);
 
-void ZXing_WriterOptions_setAddHRT(ZXing_WriterOptions* opts, bool addHRT);
-bool ZXing_WriterOptions_getAddHRT(const ZXing_WriterOptions* opts);
+void ZXing_WriterOptions_setWithHRT(ZXing_WriterOptions* opts, bool withHRT);
+bool ZXing_WriterOptions_getWithHRT(const ZXing_WriterOptions* opts);
 
-void ZXing_WriterOptions_setAddQuietZones(ZXing_WriterOptions* opts, bool addQuietZones);
-bool ZXing_WriterOptions_getAddQuietZones(const ZXing_WriterOptions* opts);
+void ZXing_WriterOptions_setWithQuietZones(ZXing_WriterOptions* opts, bool withQuietZones);
+bool ZXing_WriterOptions_getWithQuietZones(const ZXing_WriterOptions* opts);
 
 
 ZXing_Barcode* ZXing_CreateBarcodeFromText(const char* data, int size, const ZXing_CreatorOptions* opts);
@@ -305,6 +307,7 @@ ZXing_Barcode* ZXing_CreateBarcodeFromBytes(const void* data, int size, const ZX
 char* ZXing_WriteBarcodeToSVG(const ZXing_Barcode* barcode, const ZXing_WriterOptions* opts);
 ZXing_Image* ZXing_WriteBarcodeToImage(const ZXing_Barcode* barcode, const ZXing_WriterOptions* opts);
 
+#endif /* ZXING_EXPERIMENTAL_API */
 
 /* ZXing_LastErrorMsg() returns NULL in case there is no last error and a copy of the string otherwise. */
 char* ZXing_LastErrorMsg();

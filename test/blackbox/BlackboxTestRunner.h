@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include <filesystem>
+#include "ZXFilesystem.h"
+
 #include <set>
 #include <string>
-
-namespace fs = std::filesystem;
 
 namespace ZXing::Test {
 

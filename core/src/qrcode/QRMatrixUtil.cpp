@@ -7,6 +7,7 @@
 #include "QRMatrixUtil.h"
 
 #include "BitArray.h"
+#include "BitHacks.h"
 #include "QRDataMask.h"
 #include "QRErrorCorrectionLevel.h"
 #include "QRVersion.h"
@@ -111,7 +112,7 @@ static void EmbedDarkDotAtLeftBottomCorner(TritMatrix& matrix)
 // - findMSBSet(255) => 8
 static int FindMSBSet(unsigned value)
 {
-	return 32 - std::countl_zero(value);
+	return 32 - BitHacks::NumberOfLeadingZeros(value);
 }
 
 // Calculate BCH (Bose-Chaudhuri-Hocquenghem) code for "value" using polynomial "poly". The BCH

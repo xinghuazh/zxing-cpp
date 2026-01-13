@@ -16,7 +16,6 @@
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QAbstractVideoFilter>
 #else
-#include <QThreadPool>
 #include <QVideoFrame>
 #include <QVideoSink>
 #endif
@@ -62,7 +61,7 @@ enum class BarcodeFormat
 
 enum class ContentType { Text, Binary, Mixed, GS1, ISO15434, UnknownECI };
 
-enum class TextMode { Plain, ECI, HRI, Escaped, Hex, HexECI };
+enum class TextMode { Plain, ECI, HRI, Hex, Escaped };
 
 #else
 using ZXing::BarcodeFormat;
@@ -121,7 +120,7 @@ public:
 
 	explicit Barcode(ZXing::Barcode&& r) : ZXing::Barcode(std::move(r)) {
 		_text = QString::fromStdString(ZXing::Barcode::text());
-		_bytes = QByteArray(reinterpret_cast<const char*>(ZXing::Barcode::bytes().data()), std::size(ZXing::Barcode::bytes()));
+		_bytes = QByteArray(reinterpret_cast<const char*>(ZXing::Barcode::bytes().data()), Size(ZXing::Barcode::bytes()));
 		auto& pos = ZXing::Barcode::position();
 		auto qp = [&pos](int i) { return QPoint(pos[i].x, pos[i].y); };
 		_position = {qp(0), qp(1), qp(2), qp(3)};
@@ -316,7 +315,7 @@ public: \
 	{ \
 		if (name() != newVal) { \
 			ReaderOptions::setter(newVal); \
-			Q_EMIT name##Changed(); \
+			emit name##Changed(); \
 		} \
 	} \
 	Q_SIGNAL void name##Changed();
@@ -334,16 +333,7 @@ public:
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 	BarcodeReader(QObject* parent = nullptr) : QAbstractVideoFilter(parent) {}
 #else
-	BarcodeReader(QObject* parent = nullptr) : QObject(parent)
-	{
-		_pool.setMaxThreadCount(1);
-	}
-	~BarcodeReader()
-	{
-		_pool.setMaxThreadCount(0);
-		_pool.waitForDone(-1);
-	}
-
+	BarcodeReader(QObject* parent = nullptr) : QObject(parent) {}
 #endif
 
 	// TODO: find out how to properly expose QFlags to QML
@@ -359,7 +349,7 @@ public:
 	{
 		if (formats() != newVal) {
 			ReaderOptions::setFormats(static_cast<ZXing::BarcodeFormat>(newVal));
-			Q_EMIT formatsChanged();
+			emit formatsChanged();
 			qDebug() << ReaderOptions::formats();
 		}
 	}
@@ -371,7 +361,7 @@ public:
 	{
 		if (textMode() != newVal) {
 			ReaderOptions::setTextMode(static_cast<ZXing::TextMode>(newVal));
-			Q_EMIT textModeChanged();
+			emit textModeChanged();
 		}
 	}
 	Q_SIGNAL void textModeChanged();
@@ -383,11 +373,10 @@ public:
 	ZQ_PROPERTY(bool, isPure, setIsPure)
 
 	// For debugging/development
-	QAtomicInt runTime = 0;
+	int runTime = 0;
 	Q_PROPERTY(int runTime MEMBER runTime)
 
-public Q_SLOTS:
-	// Function should be thread safe, as it may be called from a separate thread.
+public slots:
 	ZXingQt::Barcode process(const QVideoFrame& image)
 	{
 		QElapsedTimer t;
@@ -398,13 +387,13 @@ public Q_SLOTS:
 		runTime = t.elapsed();
 
 		if (res.isValid())
-			Q_EMIT foundBarcode(res);
+			emit foundBarcode(res);
 		else
-			Q_EMIT failedRead();
+			emit failedRead();
 		return res;
 	}
 
-Q_SIGNALS:
+signals:
 	void failedRead();
 	void foundBarcode(ZXingQt::Barcode barcode);
 
@@ -414,7 +403,6 @@ public:
 #else
 private:
 	QVideoSink *_sink = nullptr;
-	QThreadPool _pool;
 
 public:
 	void setVideoSink(QVideoSink* sink) {
@@ -425,29 +413,9 @@ public:
 			disconnect(_sink, nullptr, this, nullptr);
 
 		_sink = sink;
-		connect(_sink, &QVideoSink::videoFrameChanged, this, &BarcodeReader::onVideoFrameChanged, Qt::DirectConnection);
-	}
-	void onVideoFrameChanged(const QVideoFrame& frame)
-	{
-		if (_pool.activeThreadCount() >= _pool.maxThreadCount())
-			return; // we are busy => skip the frame
-
-		_pool.start([this, frame](){process(frame);});
+		connect(_sink, &QVideoSink::videoFrameChanged, this, &BarcodeReader::process);
 	}
 	Q_PROPERTY(QVideoSink* videoSink MEMBER _sink WRITE setVideoSink)
-	Q_PROPERTY(int maxThreadCount READ maxThreadCount WRITE setMaxThreadCount)
-	int maxThreadCount () const
-	{
-		return _pool.maxThreadCount();
-	}
-	void setMaxThreadCount (int maxThreadCount)
-	{
-		if (_pool.maxThreadCount() != maxThreadCount) {
-			_pool.setMaxThreadCount(maxThreadCount);
-			Q_EMIT maxThreadCountChanged();
-		}
-	}
-	Q_SIGNAL void maxThreadCountChanged();
 #endif
 
 };
@@ -501,7 +469,7 @@ inline void registerQmlAndMetaTypes()
 	qRegisterMetaType<ZXingQt::Barcode>("Barcode");
 
 	qmlRegisterUncreatableMetaObject(
-		ZXingQt::staticMetaObject, "ZXing", 1, 0, "ZXing", QStringLiteral("Access to enums & flags only"));
+		ZXingQt::staticMetaObject, "ZXing", 1, 0, "ZXing", "Access to enums & flags only");
 	qmlRegisterType<ZXingQt::BarcodeReader>("ZXing", 1, 0, "BarcodeReader");
 }
 

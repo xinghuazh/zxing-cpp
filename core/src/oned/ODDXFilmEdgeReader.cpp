@@ -6,8 +6,7 @@
 
 #include "ODDXFilmEdgeReader.h"
 
-#include "BarcodeData.h"
-#include "SymbologyIdentifier.h"
+#include "Barcode.h"
 
 #include <optional>
 #include <vector>
@@ -42,7 +41,7 @@ bool IsPattern(PatternView& view, const FixedPattern<N, SUM>& pattern, float min
 
 bool DistIsBelowThreshold(PointI a, PointI b, PointI threshold)
 {
-	return std::abs(a.x - b.x) <= threshold.x && std::abs(a.y - b.y) <= threshold.y;
+	return std::abs(a.x - b.x) < threshold.x && std::abs(a.y - b.y) < threshold.y;
 }
 
 // DX Film Edge clock track found on 35mm films.
@@ -55,7 +54,7 @@ struct Clock
 
 	int dataLength() const { return hasFrameNr ? DATA_LENGTH_FN : DATA_LENGTH_NO_FN; }
 
-	float moduleSize() const { return float(xStop + 1 - xStart) / (hasFrameNr ? CLOCK_LENGTH_FN : CLOCK_LENGTH_NO_FN); }
+	float moduleSize() const { return float(xStop - xStart) / (hasFrameNr ? CLOCK_LENGTH_FN : CLOCK_LENGTH_NO_FN); }
 
 	bool isCloseTo(PointI p, int x) const { return DistIsBelowThreshold(p, {x, rowNumber}, PointI(moduleSize() * PointF{0.5, 4})); }
 
@@ -71,7 +70,7 @@ struct DXFEState : public RowReader::DecodingState
 	// see if we a clock that starts near {x, y}
 	Clock* findClock(int x, int y)
 	{
-		auto i = FindIf(clocks, [start = PointI{x, y}](auto& v) { return v.rowNumber != start.y && v.isCloseToStart(start.x, start.y); });
+		auto i = FindIf(clocks, [start = PointI{x, y}](auto& v) { return v.isCloseToStart(start.x, start.y); });
 		return i != clocks.end() ? &(*i) : nullptr;
 	}
 
@@ -105,7 +104,7 @@ std::optional<Clock> CheckForClock(int rowNumber, PatternView& view)
 
 } // namespace
 
-BarcodeData DXFilmEdgeReader::decodePattern(int rowNumber, PatternView& next, std::unique_ptr<DecodingState>& state) const
+Barcode DXFilmEdgeReader::decodePattern(int rowNumber, PatternView& next, std::unique_ptr<DecodingState>& state) const
 {
 	if (!state) {
 		state.reset(new DXFEState);
@@ -115,7 +114,7 @@ BarcodeData DXFilmEdgeReader::decodePattern(int rowNumber, PatternView& next, st
 	auto dxState = static_cast<DXFEState*>(state.get());
 
 	// Only consider rows below the center row of the image
-	if (!_opts.tryRotate() && rowNumber < dxState->centerRow - 1)
+	if (!_opts.tryRotate() && rowNumber < dxState->centerRow)
 		return {};
 
 	// Look for a pattern that is part of both the clock as well as the data track (ommitting the first bar)
@@ -151,10 +150,6 @@ BarcodeData DXFilmEdgeReader::decodePattern(int rowNumber, PatternView& next, st
 	// Only consider data tracks that are next to a clock track
 	auto clock = dxState->findClock(xStart, rowNumber);
 	if (!clock)
-		return {};
-
-	// Make sure the start pattern has the proper size (approx. 5 modules)
-	if (std::fabs(next.sum() / clock->moduleSize() - 5) > 1.0 )
 		return {};
 
 	// Skip the data start pattern (black, white, black, white, black)
@@ -224,7 +219,7 @@ BarcodeData DXFilmEdgeReader::decodePattern(int rowNumber, PatternView& next, st
 	clock->xStart = xStart;
 	clock->xStop = xStop;
 
-	return LinearBarcode(BarcodeFormat::DXFilmEdge, txt, rowNumber, xStart, xStop, {});
+	return Barcode(txt, rowNumber, xStart, xStop, BarcodeFormat::DXFilmEdge, {});
 }
 
 } // namespace ZXing::OneD

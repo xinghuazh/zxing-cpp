@@ -55,7 +55,6 @@ WriteResult generateBarcode(std::wstring text, std::string format, std::string e
 		if (barcodeFormat == BarcodeFormat::None)
 			return {"Unsupported format: " + format};
 
-		// TODO: use new writer API
 		MultiFormatWriter writer(barcodeFormat);
 		if (margin >= 0)
 			writer.setMargin(margin);

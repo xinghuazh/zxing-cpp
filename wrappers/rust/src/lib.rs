@@ -190,24 +190,24 @@ macro_rules! property {
 }
 
 macro_rules! make_zxing_enum {
-	($name:ident { $($field:ident),* }) => {
-		#[repr(u32)]
-		#[derive(Debug, Copy, Clone, PartialEq)]
-		pub enum $name {
-			$($field = paste! { [<ZXing_ $name _ $field>] },)*
-		}
-	}
+    ($name:ident { $($field:ident),* }) => {
+        #[repr(u32)]
+        #[derive(Debug, Copy, Clone, PartialEq)]
+        pub enum $name {
+            $($field = paste! { [<ZXing_ $name _ $field>] },)*
+        }
+    }
 }
 
 macro_rules! make_zxing_flags {
-	($name:ident { $($field:ident),* }) => {
-		flags! {
-			#[repr(u32)]
-			pub enum $name: c_uint {
-				$($field = paste! { [<ZXing_ $name _ $field>] },)*
-			}
-		}
-	}
+    ($name:ident { $($field:ident),* }) => {
+        flags! {
+            #[repr(u32)]
+            pub enum $name: c_uint {
+                $($field = paste! { [<ZXing_ $name _ $field>] },)*
+            }
+        }
+    }
 }
 #[rustfmt::skip] // workaround for broken #[rustfmt::skip::macros(make_zxing_enum)]
 make_zxing_enum!(ImageFormat { Lum, LumA, RGB, BGR, RGBA, ARGB, BGRA, ABGR });
@@ -216,7 +216,7 @@ make_zxing_enum!(ContentType { Text, Binary, Mixed, GS1, ISO15434, UnknownECI })
 #[rustfmt::skip]
 make_zxing_enum!(Binarizer { LocalAverage, GlobalHistogram, FixedThreshold, BoolCast });
 #[rustfmt::skip]
-make_zxing_enum!(TextMode { Plain, ECI, HRI, Escaped, Hex, HexECI });
+make_zxing_enum!(TextMode { Plain, ECI, HRI, Hex, Escaped });
 #[rustfmt::skip]
 make_zxing_enum!(EanAddOnSymbol { Ignore, Read, Require });
 
@@ -539,7 +539,9 @@ impl BarcodeCreator {
 		unsafe { BarcodeCreator(ZXing_CreatorOptions_new(BarcodeFormats::from(format).bits())) }
 	}
 
-	property!(CreatorOptions, Options, String);
+	property!(CreatorOptions, ReaderInit, bool);
+	property!(CreatorOptions, ForceSquareDataMatrix, bool);
+	property!(CreatorOptions, EcLevel, String);
 
 	pub fn from_str(&self, str: impl AsRef<str>) -> Result<Barcode, Error> {
 		let cstr = CString::new(str.as_ref())?;
@@ -558,9 +560,10 @@ make_zxing_class_with_default!(BarcodeWriter, ZXing_WriterOptions);
 
 impl BarcodeWriter {
 	property!(WriterOptions, Scale, i32);
+	property!(WriterOptions, SizeHint, i32);
 	property!(WriterOptions, Rotate, i32);
-	property!(WriterOptions, AddHRT, add_hrt, bool);
-	property!(WriterOptions, AddQuietZones, bool);
+	property!(WriterOptions, WithHRT, with_hrt, bool);
+	property!(WriterOptions, WithQuietZones, bool);
 }
 
 pub fn read() -> BarcodeReader {

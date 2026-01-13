@@ -4,10 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "CharacterSet.h"
-#include "Version.h"
-#ifdef ZXING_READERS
 #include "TextDecoder.h"
-#endif
 #include "TextEncoder.h"
 
 #include "gtest/gtest.h"
@@ -21,10 +18,9 @@ void EnDeCode(CharacterSet cs, const CharT* in, std::string_view out)
 	std::string bytes = TextEncoder::FromUnicode(reinterpret_cast<const char*>(in), cs);
 	EXPECT_EQ(bytes, out);
 
-#ifdef ZXING_READERS
-	std::string dec = BytesToUtf8({reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()}, cs);
+	std::string dec;
+	TextDecoder::Append(dec, reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), cs);
 	EXPECT_EQ(dec, reinterpret_cast<const char*>(in));
-#endif
 }
 
 TEST(TextEncoderTest, FullCycleEncodeDecode)

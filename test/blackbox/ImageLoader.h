@@ -6,9 +6,7 @@
 #pragma once
 
 #include "ImageView.h"
-
-#include <filesystem>
-namespace fs = std::filesystem;
+#include "ZXFilesystem.h"
 
 namespace ZXing::Test::ImageLoader {
 

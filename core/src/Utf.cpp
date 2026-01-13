@@ -14,16 +14,13 @@
 #include <cstdint>
 #include <sstream>
 
-#if __cplusplus <= 201703L
-#include "Range.h"
-using char8_t = uint8_t;
-using utf8_t = ZXing::ArrayView<char8_t>;
-#else
-#include <string_view>
-using utf8_t = std::u8string_view;
-#endif
-
 namespace ZXing {
+
+// TODO: c++20 has char8_t
+#if __cplusplus <= 201703L
+using char8_t = uint8_t;
+#endif
+using utf8_t = std::basic_string_view<char8_t>;
 
 using state_t = uint8_t;
 constexpr state_t kAccepted = 0;
@@ -116,18 +113,6 @@ static void AppendFromUtf8(utf8_t utf8, std::wstring& buffer)
 			buffer.push_back(narrow_cast<wchar_t>(codePoint));
 		}
 	}
-}
-
-bool IsValidUtf8(ByteView bytes)
-{
-	state_t state = kAccepted;
-	char32_t codepoint = 0;
-	for (int value : bytes) {
-		Utf8Decode(value, state, codepoint);
-		if (state == kRejected)
-			return false;
-	}
-	return state == kAccepted;
 }
 
 std::wstring FromUtf8(std::string_view utf8)

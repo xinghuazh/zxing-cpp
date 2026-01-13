@@ -4,12 +4,12 @@ project(ZXing)
 
 option (ZXING_READERS "Build with reader support (decoders)" ON)
 set    (ZXING_WRITERS "ON" CACHE STRING "Build with old and/or new writer (encoder) backend (OFF/ON/OLD/NEW/BOTH)")
+option (ZXING_USE_BUNDLED_ZINT "Use the bundled libzint for barcode creation/writing" ON)
 option (ZXING_C_API "Build the C-API" OFF)
 option (ZXING_EXPERIMENTAL_API "Build with experimental API" OFF)
 option (ZXING_EXAMPLES "Build the example barcode reader/writer applications" ON)
 option (ZXING_BLACKBOX_TESTS "Build the black box reader/writer tests" OFF)
 option (ZXING_UNIT_TESTS "Build the unit tests (don't enable for production builds)" OFF)
-option (ZXING_INSTALL_TEST "Test if the installed/public API works" OFF)
 option (ZXING_PYTHON_MODULE "Build the python module" OFF)
 set    (ZXING_DEPENDENCIES "AUTO" CACHE STRING "Fetch from github or use locally installed (AUTO/GITHUB/LOCAL)")
 
@@ -34,6 +34,26 @@ if (NOT CMAKE_BUILD_TYPE)
     set_property (CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+# provide backward compatibility for deprecated BUILD_... options
+if (DEFINED BUILD_READERS)
+    set (ZXING_READERS ${BUILD_READERS})
+endif()
+if (DEFINED BUILD_WRITERS)
+    set (ZXING_WRITERS ${BUILD_WRITERS})
+endif()
+if (DEFINED BUILD_EXAMPLES)
+    message (WARNING "zxing-cpp cmake options BUILD_... are deprecated, please switch to ZXING_... variant")
+    set (ZXING_EXAMPLES ${BUILD_EXAMPLES})
+endif()
+if (DEFINED BUILD_PYTHON_MODULE)
+    message (WARNING "zxing-cpp cmake options BUILD_... are deprecated, please switch to ZXING_... variant")
+    set (ZXING_PYTHON_MODULE ${BUILD_PYTHON_MODULE})
+endif()
+if (DEFINED BUILD_DEPENDENCIES)
+    message (WARNING "zxing-cpp cmake options BUILD_... are deprecated, please switch to ZXING_... variant")
+    set (ZXING_DEPENDENCIES ${BUILD_DEPENDENCIES})
+endif()
+
 if (NOT (ZXING_READERS OR ZXING_WRITERS))
     message(FATAL_ERROR "At least one of ZXING_READERS/ZXING_WRITERS must be enabled.")
 endif()
@@ -52,11 +72,12 @@ endif()
 
 if (NOT DEFINED CMAKE_CXX_STANDARD)
     set (CMAKE_CXX_STANDARD 20)
-    set (CMAKE_CXX_STANDARD_REQUIRED ON)
+    # Allow the fallback to earlier versions if the compiler does not support it.
+    set(CMAKE_CXX_STANDARD_REQUIRED OFF)
+endif()
+if (NOT DEFINED CMAKE_CXX_EXTENSIONS)
     set (CMAKE_CXX_EXTENSIONS OFF)
 endif()
-
-set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 add_subdirectory (core)
 
@@ -72,16 +93,6 @@ if (ZXING_BLACKBOX_TESTS)
 endif()
 if (ZXING_UNIT_TESTS)
     add_subdirectory (test/unit)
-endif()
-if (ZXING_INSTALL_TEST)
-    add_test(
-        NAME InstallTest
-        COMMAND
-            ${CMAKE_COMMAND}
-            -DPROJECT_BINARY_DIR=${CMAKE_BINARY_DIR}
-            -DSOURCE_DIR=${CMAKE_SOURCE_DIR}/test/install
-            -P ${CMAKE_SOURCE_DIR}/test/install/run.cmake
-    )
 endif()
 if (ZXING_PYTHON_MODULE)
     add_subdirectory (wrappers/python)

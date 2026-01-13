@@ -110,9 +110,8 @@ pub type ZXing_EanAddOnSymbol = ::core::ffi::c_uint;
 pub const ZXing_TextMode_Plain: ZXing_TextMode = 0;
 pub const ZXing_TextMode_ECI: ZXing_TextMode = 1;
 pub const ZXing_TextMode_HRI: ZXing_TextMode = 2;
-pub const ZXing_TextMode_Escaped: ZXing_TextMode = 3;
-pub const ZXing_TextMode_Hex: ZXing_TextMode = 4;
-pub const ZXing_TextMode_HexECI: ZXing_TextMode = 5;
+pub const ZXing_TextMode_Hex: ZXing_TextMode = 3;
+pub const ZXing_TextMode_Escaped: ZXing_TextMode = 4;
 pub type ZXing_TextMode = ::core::ffi::c_uint;
 extern "C" {
 	pub fn ZXing_ImageView_new(
@@ -203,18 +202,24 @@ extern "C" {
 	pub fn ZXing_CreatorOptions_delete(opts: *mut ZXing_CreatorOptions);
 	pub fn ZXing_CreatorOptions_setFormat(opts: *mut ZXing_CreatorOptions, format: ZXing_BarcodeFormat);
 	pub fn ZXing_CreatorOptions_getFormat(opts: *const ZXing_CreatorOptions) -> ZXing_BarcodeFormat;
-	pub fn ZXing_CreatorOptions_setOptions(opts: *mut ZXing_CreatorOptions, options: *const ::core::ffi::c_char);
-	pub fn ZXing_CreatorOptions_getOptions(opts: *const ZXing_CreatorOptions) -> *mut ::core::ffi::c_char;
+	pub fn ZXing_CreatorOptions_setReaderInit(opts: *mut ZXing_CreatorOptions, readerInit: bool);
+	pub fn ZXing_CreatorOptions_getReaderInit(opts: *const ZXing_CreatorOptions) -> bool;
+	pub fn ZXing_CreatorOptions_setForceSquareDataMatrix(opts: *mut ZXing_CreatorOptions, forceSquareDataMatrix: bool);
+	pub fn ZXing_CreatorOptions_getForceSquareDataMatrix(opts: *const ZXing_CreatorOptions) -> bool;
+	pub fn ZXing_CreatorOptions_setEcLevel(opts: *mut ZXing_CreatorOptions, ecLevel: *const ::core::ffi::c_char);
+	pub fn ZXing_CreatorOptions_getEcLevel(opts: *const ZXing_CreatorOptions) -> *mut ::core::ffi::c_char;
 	pub fn ZXing_WriterOptions_new() -> *mut ZXing_WriterOptions;
 	pub fn ZXing_WriterOptions_delete(opts: *mut ZXing_WriterOptions);
 	pub fn ZXing_WriterOptions_setScale(opts: *mut ZXing_WriterOptions, scale: ::core::ffi::c_int);
 	pub fn ZXing_WriterOptions_getScale(opts: *const ZXing_WriterOptions) -> ::core::ffi::c_int;
+	pub fn ZXing_WriterOptions_setSizeHint(opts: *mut ZXing_WriterOptions, sizeHint: ::core::ffi::c_int);
+	pub fn ZXing_WriterOptions_getSizeHint(opts: *const ZXing_WriterOptions) -> ::core::ffi::c_int;
 	pub fn ZXing_WriterOptions_setRotate(opts: *mut ZXing_WriterOptions, rotate: ::core::ffi::c_int);
 	pub fn ZXing_WriterOptions_getRotate(opts: *const ZXing_WriterOptions) -> ::core::ffi::c_int;
-	pub fn ZXing_WriterOptions_setAddHRT(opts: *mut ZXing_WriterOptions, addHRT: bool);
-	pub fn ZXing_WriterOptions_getAddHRT(opts: *const ZXing_WriterOptions) -> bool;
-	pub fn ZXing_WriterOptions_setAddQuietZones(opts: *mut ZXing_WriterOptions, addQuietZones: bool);
-	pub fn ZXing_WriterOptions_getAddQuietZones(opts: *const ZXing_WriterOptions) -> bool;
+	pub fn ZXing_WriterOptions_setWithHRT(opts: *mut ZXing_WriterOptions, withHRT: bool);
+	pub fn ZXing_WriterOptions_getWithHRT(opts: *const ZXing_WriterOptions) -> bool;
+	pub fn ZXing_WriterOptions_setWithQuietZones(opts: *mut ZXing_WriterOptions, withQuietZones: bool);
+	pub fn ZXing_WriterOptions_getWithQuietZones(opts: *const ZXing_WriterOptions) -> bool;
 	pub fn ZXing_CreateBarcodeFromText(
 		data: *const ::core::ffi::c_char,
 		size: ::core::ffi::c_int,

@@ -5,52 +5,11 @@
 
 #pragma once
 
+#include "BitHacks.h"
+
 #include <cstddef>
 #include <iterator>
-#include <limits>
 #include <type_traits>
-
-#include <version>
-#ifdef __cpp_lib_bitops
-#include <bit>
-#else
-namespace std {
-template <class T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
-constexpr int popcount(T x) noexcept
-{
-	int n = 0;
-	for (; x; ++n)
-		x &= x - 1; // clear lowest bit
-	return n;
-}
-
-template <class T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
-constexpr int countr_zero(T x) noexcept
-{
-	if (x == 0)
-		return std::numeric_limits<T>::digits;
-
-	int n = 0;
-	while ((x & T(1)) == 0) {
-		x >>= 1;
-		++n;
-	}
-	return n;
-}
-
-template <class T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
-constexpr int countl_zero(T x) noexcept
-{
-	if (x == 0)
-		return std::numeric_limits<T>::digits;
-
-	int n = 0;
-	for (int i = std::numeric_limits<T>::digits; i-- && !(x & (T(1) << i)); ++n)
-		;
-	return n;
-}
-} // namespace std
-#endif
 
 namespace ZXing {
 
@@ -63,12 +22,7 @@ class Flags
 	Int i = 0;
 
 	constexpr inline Flags(Int other) : i(other) {}
-
-	constexpr static inline auto ToUnsigned(Int x) noexcept { return static_cast<std::make_unsigned_t<Int>>(x); }
-	constexpr static inline auto highestBitSet(Int x) noexcept
-	{
-		return std::numeric_limits<Int>::digits - std::countl_zero(ToUnsigned(x));
-	}
+	constexpr static inline unsigned highestBitSet(Int x) noexcept { return x < 2 ? x : 1 + highestBitSet(x >> 1); }
 
 public:
 	using enum_type = Enum;
@@ -97,7 +51,7 @@ public:
 
 		iterator& operator++() noexcept
 		{
-			while (++_pos < highestBitSet(_flags) && !((1 << _pos) & _flags))
+			while (++_pos < BitHacks::HighestBitSet(_flags) && !((1 << _pos) & _flags))
 				;
 			return *this;
 		}
@@ -106,11 +60,11 @@ public:
 		bool operator!=(const iterator& rhs) const noexcept { return !(*this == rhs); }
 	};
 
-	iterator begin() const noexcept { return {i, std::countr_zero(ToUnsigned(i))}; }
-	iterator end() const noexcept { return {i, highestBitSet(i) + 1}; }
+	iterator begin() const noexcept { return {i, BitHacks::NumberOfTrailingZeros(i)}; }
+	iterator end() const noexcept { return {i, BitHacks::HighestBitSet(i) + 1}; }
 
 	bool empty() const noexcept { return i == 0; }
-	int count() const noexcept { return std::popcount(ToUnsigned(i)); }
+	int count() const noexcept { return BitHacks::CountBitsSet(i); }
 
 	constexpr inline bool operator==(Flags other) const noexcept { return i == other.i; }
 

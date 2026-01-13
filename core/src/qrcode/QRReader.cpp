@@ -7,22 +7,31 @@
 
 #include "QRReader.h"
 
-#include "BarcodeData.h"
 #include "BinaryBitmap.h"
 #include "ConcentricFinder.h"
+#include "ReaderOptions.h"
 #include "DecoderResult.h"
 #include "DetectorResult.h"
 #include "LogMatrix.h"
 #include "QRDecoder.h"
 #include "QRDetector.h"
-#include "ReaderOptions.h"
+#include "Barcode.h"
 
 #include <utility>
 
 namespace ZXing::QRCode {
 
-static BarcodeData readPure(const BitMatrix* binImg, const ReaderOptions& _opts)
+Barcode Reader::decode(const BinaryBitmap& image) const
 {
+#if 1
+	if (!_opts.isPure())
+		return FirstOrDefault(decode(image, 1));
+#endif
+
+	auto binImg = image.getBitMatrix();
+	if (binImg == nullptr)
+		return {};
+
 	DetectorResult detectorResult;
 	if (_opts.hasFormat(BarcodeFormat::QRCode))
 		detectorResult = DetectPureQR(*binImg);
@@ -39,7 +48,7 @@ static BarcodeData readPure(const BitMatrix* binImg, const ReaderOptions& _opts)
 				  : detectorResult.bits().width() < 21                            ? BarcodeFormat::MicroQRCode
 																				  : BarcodeFormat::QRCode;
 
-	return MatrixBarcode(std::move(decoderResult), std::move(detectorResult), format);
+	return Barcode(std::move(decoderResult), std::move(detectorResult), format);
 }
 
 void logFPSet(const FinderPatternSet& fps [[maybe_unused]])
@@ -58,7 +67,7 @@ void logFPSet(const FinderPatternSet& fps [[maybe_unused]])
 #endif
 }
 
-BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
+Barcodes Reader::decode(const BinaryBitmap& image, int maxSymbols) const
 {
 	auto binImg = image.getBitMatrix();
 	if (binImg == nullptr)
@@ -67,10 +76,7 @@ BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
 #ifdef PRINT_DEBUG
 	LogMatrixWriter lmw(log, *binImg, 5, "qr-log.pnm");
 #endif
-
-	if (_opts.isPure())
-		return ToVector(readPure(binImg, _opts));
-
+	
 	auto allFPs = FindFinderPatterns(*binImg, _opts.tryHarder());
 
 #ifdef PRINT_DEBUG
@@ -78,7 +84,7 @@ BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
 #endif
 
 	std::vector<ConcentricPattern> usedFPs;
-	BarcodesData res;
+	Barcodes res;
 	
 	if (_opts.hasFormat(BarcodeFormat::QRCode)) {
 		auto allFPSets = GenerateFinderPatternSets(allFPs);
@@ -97,7 +103,7 @@ BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
 					usedFPs.push_back(fpSet.tr);
 				}
 				if (decoderResult.isValid(_opts.returnErrors())) {
-					res.emplace_back(MatrixBarcode(std::move(decoderResult), std::move(detectorResult), BarcodeFormat::QRCode));
+					res.emplace_back(std::move(decoderResult), std::move(detectorResult), BarcodeFormat::QRCode);
 					if (maxSymbols && Size(res) == maxSymbols)
 						break;
 				}
@@ -114,7 +120,7 @@ BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
 			if (detectorResult.isValid()) {
 				auto decoderResult = Decode(detectorResult.bits());
 				if (decoderResult.isValid(_opts.returnErrors())) {
-					res.emplace_back(MatrixBarcode(std::move(decoderResult), std::move(detectorResult), BarcodeFormat::MicroQRCode));
+					res.emplace_back(std::move(decoderResult), std::move(detectorResult), BarcodeFormat::MicroQRCode);
 					if (maxSymbols && Size(res) == maxSymbols)
 						break;
 				}
@@ -133,7 +139,7 @@ BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
 			if (detectorResult.isValid()) {
 				auto decoderResult = Decode(detectorResult.bits());
 				if (decoderResult.isValid(_opts.returnErrors())) {
-					res.emplace_back(MatrixBarcode(std::move(decoderResult), std::move(detectorResult), BarcodeFormat::RMQRCode));
+					res.emplace_back(std::move(decoderResult), std::move(detectorResult), BarcodeFormat::RMQRCode);
 					if (maxSymbols && Size(res) == maxSymbols)
 						break;
 				}

@@ -41,7 +41,9 @@ using namespace ZXing::Utility;
 namespace {
 	std::wstring ShiftJISString(const std::vector<uint8_t>& bytes)
 	{
-		return FromUtf8(BytesToUtf8(bytes, CharacterSet::Shift_JIS));
+		std::string str;
+		TextDecoder::Append(str, bytes.data(), bytes.size(), CharacterSet::Shift_JIS);
+		return FromUtf8(str);
 	}
 
 	std::string RemoveSpace(std::string s)

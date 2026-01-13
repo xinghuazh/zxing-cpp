@@ -12,10 +12,8 @@
 #include "ZXAlgorithms.h"
 
 // Writer
-#ifdef ZXING_USE_ZINT
-#include "CreateBarcode.h"
+#ifdef ZXING_EXPERIMENTAL_API
 #include "WriteBarcode.h"
-#include <bit>
 #else
 #include "BitMatrix.h"
 #include "Matrix.h"
@@ -26,33 +24,35 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <optional>
+#include <sstream>
 #include <vector>
 
 using namespace ZXing;
 namespace py = pybind11;
 using namespace pybind11::literals; // to bring in the `_a` literal
 
+std::ostream& operator<<(std::ostream& os, const Position& points) {
+	for (const auto& p : points)
+		os << p.x << "x" << p.y << " ";
+	os.seekp(-1, os.cur);
+	os << '\0';
+	return os;
+}
+
 auto read_barcodes_impl(py::object _image, const BarcodeFormats& formats, bool try_rotate, bool try_downscale, TextMode text_mode,
 						Binarizer binarizer, bool is_pure, EanAddOnSymbol ean_add_on_symbol, bool return_errors,
 						uint8_t max_number_of_symbols = 0xff)
 {
 	const auto opts = ReaderOptions()
-		.formats(formats)
-		.tryRotate(try_rotate)
-		.tryDownscale(try_downscale)
-		.textMode(text_mode)
-		.binarizer(binarizer)
-		.isPure(is_pure)
-		.maxNumberOfSymbols(max_number_of_symbols)
-		.eanAddOnSymbol(ean_add_on_symbol)
-		.returnErrors(return_errors);
-
-	if (py::isinstance<ImageView>(_image)) {
-		// Disables the GIL during zxing processing (restored automatically upon completion)
-		py::gil_scoped_release release;
-		return ReadBarcodes(_image.cast<ImageView>(), opts);
-	}
-
+		.setFormats(formats)
+		.setTryRotate(try_rotate)
+		.setTryDownscale(try_downscale)
+		.setTextMode(text_mode)
+		.setBinarizer(binarizer)
+		.setIsPure(is_pure)
+		.setMaxNumberOfSymbols(max_number_of_symbols)
+		.setEanAddOnSymbol(ean_add_on_symbol)
+		.setReturnErrors(return_errors);
 	const auto _type = std::string(py::str(py::type::of(_image)));
 	py::buffer_info info;
 	ImageFormat imgfmt = ImageFormat::None;
@@ -106,31 +106,6 @@ auto read_barcodes_impl(py::object _image, const BarcodeFormats& formats, bool t
 			} else {
 				info = _image.cast<py::buffer>().request();
 			}
-#ifdef ZXING_EXPERIMENTAL_API
-		} else if(_type.find("QtGui.QImage") != std::string::npos) {
-			const std::string format = py::str(_image.attr("format")());
-			if (format.ends_with("Format_ARGB32") || format.ends_with("Format_RGB32")) {
-				if constexpr (std::endian::native == std::endian::little)
-					imgfmt = ImageFormat::BGRA;
-				else
-					imgfmt = ImageFormat::ARGB;
-			} else if (format.ends_with("Format_RGBA8888"))
-				imgfmt = ImageFormat::RGBA;
-			else if (format.ends_with("Format_RGB888"))
-				imgfmt = ImageFormat::RGB;
-			else if (format.ends_with("Format_BGR888"))
-				imgfmt = ImageFormat::BGR;
-			else if (format.ends_with("Format_Grayscale8"))
-				imgfmt = ImageFormat::Lum;
-			else {
-				_image = _image.attr("convertToFormat")(24).cast<py::buffer>(); // 24 is Format_Greyscale8
-				imgfmt = ImageFormat::Lum;
-			}
-			info = _image.attr("constBits")().cast<py::buffer>().request();
-			info.ndim = 3;
-			info.shape = {_image.attr("height")().cast<py::ssize_t>(), _image.attr("width")().cast<py::ssize_t>(), PixStride(imgfmt)};
-			info.strides = {_image.attr("bytesPerLine")().cast<py::ssize_t>(), PixStride(imgfmt), 1};
-#endif
 		} else {
 			info = _image.cast<py::buffer>().request();
 		}
@@ -186,21 +161,10 @@ Barcodes read_barcodes(py::object _image, const BarcodeFormats& formats, bool tr
 							  return_errors);
 }
 
-auto image_view(py::buffer buffer, int width, int height, ImageFormat format, int rowStride, int pixStride)
+#ifdef ZXING_EXPERIMENTAL_API
+Barcode create_barcode(py::object content, BarcodeFormat format, std::string ec_level)
 {
-	const auto _type = std::string(py::str(py::type::of(buffer)));
-
-	auto info = buffer.request();
-
-	if (info.format != py::format_descriptor<uint8_t>::format())
-		throw py::type_error("Incompatible buffer format '" + info.format + "': expected a uint8_t array.");
-
-	return ImageView(static_cast<const uint8_t*>(info.ptr), info.size, width, height, format, rowStride, pixStride);
-}
-
-Barcode create_barcode(py::object content, BarcodeFormat format, const py::kwargs& kwargs)
-{
-	auto cOpts = CreatorOptions(format, py::str(static_cast<py::handle>(kwargs))); // see https://github.com/pybind/pybind11/issues/5938
+	auto cOpts = CreatorOptions(format).ecLevel(ec_level);
 	auto data = py::cast<std::string>(content);
 
 	if (py::isinstance<py::str>(content))
@@ -211,25 +175,22 @@ Barcode create_barcode(py::object content, BarcodeFormat format, const py::kwarg
 		throw py::type_error("Invalid input: only 'str' and 'bytes' supported.");
 }
 
-Image write_barcode_to_image(Barcode barcode, int scale, bool add_hrt, bool add_quiet_zones)
+Image write_barcode_to_image(Barcode barcode, int size_hint, bool with_hrt, bool with_quiet_zones)
 {
-	return WriteBarcodeToImage(barcode, WriterOptions().scale(scale).addHRT(add_hrt).addQuietZones(add_quiet_zones));
+	return WriteBarcodeToImage(barcode, WriterOptions().sizeHint(size_hint).withHRT(with_hrt).withQuietZones(with_quiet_zones));
 }
 
-std::string write_barcode_to_svg(Barcode barcode, int scale, bool add_hrt, bool add_quiet_zones)
+std::string write_barcode_to_svg(Barcode barcode, int size_hint, bool with_hrt, bool with_quiet_zones)
 {
-	return WriteBarcodeToSVG(barcode, WriterOptions().scale(scale).addHRT(add_hrt).addQuietZones(add_quiet_zones));
+	return WriteBarcodeToSVG(barcode, WriterOptions().sizeHint(size_hint).withHRT(with_hrt).withQuietZones(with_quiet_zones));
 }
+#endif
 
 Image write_barcode(BarcodeFormat format, py::object content, int width, int height, int quiet_zone, int ec_level)
 {
-#ifdef ZXING_USE_ZINT
-	auto warnings = pybind11::module::import("warnings");
-	auto builtins = pybind11::module::import("builtins");
-	warnings.attr("warn")("write_barcode() is deprecated, use create_barcode() instead.", builtins.attr("DeprecationWarning"));
-
-	auto barcode = create_barcode(content, format, py::dict("ec_level"_a = ec_level / 2));
-	return write_barcode_to_image(barcode, -std::max(width, height), false, quiet_zone != 0);
+#ifdef ZXING_EXPERIMENTAL_API
+	auto barcode = create_barcode(content, format, std::to_string(ec_level));
+	return write_barcode_to_image(barcode, std::max(width, height), false, quiet_zone != 0);
 #else
 	CharacterSet encoding [[maybe_unused]];
 	if (py::isinstance<py::str>(content))
@@ -315,19 +276,8 @@ PYBIND11_MODULE(zxingcpp, m)
 		.value("Plain", TextMode::Plain, "bytes() transcoded to unicode based on ECI info or guessed charset (the default mode prior to 2.0)")
 		.value("ECI", TextMode::ECI, "standard content following the ECI protocol with every character set ECI segment transcoded to unicode")
 		.value("HRI", TextMode::HRI, "Human Readable Interpretation (dependent on the ContentType)")
-		.value("Escaped", TextMode::Escaped, "Use the EscapeNonGraphical() function (e.g. ASCII 29 will be transcoded to '<GS>'")
 		.value("Hex", TextMode::Hex, "bytes() transcoded to ASCII string of HEX values")
-		.value("HexECI", TextMode::HexECI, "bytesECI() transcoded to ASCII string of HEX values")
-		.export_values();
-	py::enum_<ImageFormat>(m, "ImageFormat", "Enumeration of image formats supported by read_barcodes")
-		.value("Lum", ImageFormat::Lum)
-		.value("LumA", ImageFormat::LumA)
-		.value("RGB", ImageFormat::RGB)
-		.value("BGR", ImageFormat::BGR)
-		.value("RGBA", ImageFormat::RGBA)
-		.value("ARGB", ImageFormat::ARGB)
-		.value("BGRA", ImageFormat::BGRA)
-		.value("ABGR", ImageFormat::ABGR)
+		.value("Escaped", TextMode::Escaped, "Use the EscapeNonGraphical() function (e.g. ASCII 29 will be transcoded to '<GS>'")
 		.export_values();
 	py::class_<PointI>(m, "Point", "Represents the coordinates of a point in an image")
 		.def_readonly("x", &PointI::x,
@@ -349,7 +299,11 @@ PYBIND11_MODULE(zxingcpp, m)
 		.def_property_readonly("bottom_right", &Position::bottomRight,
 			":return: coordinate of the symbol's bottom-right corner\n"
 			":rtype: zxingcpp.Point")
-		.def("__str__", [](Position pos) { return ToString(pos); });
+		.def("__str__", [](Position pos) {
+			std::ostringstream oss;
+			oss << pos;
+			return oss.str();
+		});
 	py::enum_<Error::Type>(m, "ErrorType", "")
 		.value("None", Error::Type::None, "No error")
 		.value("Format", Error::Type::Format, "Data format error")
@@ -371,7 +325,7 @@ PYBIND11_MODULE(zxingcpp, m)
 		.def_property_readonly("text", [](const Barcode& res) { return res.text(); },
 			":return: text of the decoded symbol (see also TextMode parameter)\n"
 			":rtype: str")
-		.def_property_readonly("bytes", [](const Barcode& res) { return py::bytes((char*)res.bytes().data(), res.bytes().size()); },
+		.def_property_readonly("bytes", [](const Barcode& res) { return py::bytes(res.bytes().asString()); },
 			":return: uninterpreted bytes of the decoded symbol\n"
 			":rtype: bytes")
 		.def_property_readonly("format", &Barcode::format,
@@ -396,14 +350,16 @@ PYBIND11_MODULE(zxingcpp, m)
 			"error", [](const Barcode& res) { return res.error() ? std::optional(res.error()) : std::nullopt; },
 			":return: Error code or None\n"
 			":rtype: zxingcpp.Error")
+#ifdef ZXING_EXPERIMENTAL_API
 		.def("to_image", &write_barcode_to_image,
-			  py::arg("scale") = 1,
-			  py::arg("add_hrt") = false,
-			  py::arg("add_quiet_zones") = true)
+			  py::arg("size_hint") = 0,
+			  py::arg("with_hrt") = false,
+			  py::arg("with_quiet_zones") = true)
 		.def("to_svg", &write_barcode_to_svg,
-			  py::arg("scale") = 1,
-			  py::arg("add_hrt") = false,
-			  py::arg("add_quiet_zones") = true)
+			  py::arg("size_hint") = 0,
+			  py::arg("with_hrt") = false,
+			  py::arg("with_quiet_zones") = true)
+#endif
 		;
 	m.attr("Result") = m.attr("Barcode"); // alias to deprecated name for the Barcode class
 	m.def("barcode_format_from_str", &BarcodeFormatFromString,
@@ -436,8 +392,6 @@ PYBIND11_MODULE(zxingcpp, m)
 		"  - a buffer with the correct shape, use .cast on memory view to convert\n"
 		"  - a numpy array containing image either in grayscale (1 byte per pixel) or BGR mode (3 bytes per pixel)\n"
 		"  - a PIL Image\n"
-		"  - a QtGui.QImage\n"
-		"  - a zxingcpp.ImageView object, which is effectively a memory view but with custom strides and ImageFormat\n"
 		":type formats: zxing.BarcodeFormat|zxing.BarcodeFormats\n"
 		":param formats: the format(s) to decode. If ``None``, decode all formats.\n"
 		":type try_rotate: bool\n"
@@ -477,11 +431,9 @@ PYBIND11_MODULE(zxingcpp, m)
 		"Read (decode) multiple barcodes from a numpy BGR or grayscale image array or from a PIL image.\n\n"
 		":type image: buffer|numpy.ndarray|PIL.Image.Image\n"
 		":param image: The image object to decode. The image can be either:\n"
-		"  - a buffer with the correct shape, use .cast on memoryview to convert\n"
+		"  - a buffer with the correct shape, use .cast on memory view to convert\n"
 		"  - a numpy array containing image either in grayscale (1 byte per pixel) or BGR mode (3 bytes per pixel)\n"
 		"  - a PIL Image\n"
-		"  - a QtGui.QImage\n"
-		"  - a zxingcpp.ImageView object, which is effectively a memory view but with custom strides and ImageFormat\n"
 		":type formats: zxing.BarcodeFormat|zxing.BarcodeFormats\n"
 		":param formats: the format(s) to decode. If ``None``, decode all formats.\n"
 		":type try_rotate: bool\n"
@@ -515,57 +467,39 @@ PYBIND11_MODULE(zxingcpp, m)
 				return py::dict("version"_a = 3, "data"_a = m, "shape"_a = py::make_tuple(m.height(), m.width()), "typestr"_a = "|u1");
 			})
 		.def_property_readonly("shape", [](const Image& m) { return py::make_tuple(m.height(), m.width()); })
-		.def_buffer([](const Image& img) -> py::buffer_info {
+		.def_buffer([](const Image& m) -> py::buffer_info {
 			return {
-				const_cast<uint8_t*>(img.data()),         // Pointer to buffer
-				sizeof(uint8_t),                          // Size of one scalar
-				py::format_descriptor<uint8_t>::format(), // Python struct-style format descriptor
-				2,                                        // Number of dimensions
-				{img.height(), img.width()},              // Buffer dimensions
-				{img.rowStride(), img.pixStride()},       // Strides (in bytes) for each index
-				true                                      // read-only
+				const_cast<uint8_t*>(m.data()),                 // Pointer to buffer
+				sizeof(uint8_t),                                // Size of one scalar
+				py::format_descriptor<uint8_t>::format(),       // Python struct-style format descriptor
+				2,                                              // Number of dimensions
+				{m.height(), m.width()},                        // Buffer dimensions
+				{m.rowStride(), m.pixStride()},                 // Strides (in bytes) for each index
+				true                                            // read-only
 			};
 		});
 
+#ifdef ZXING_EXPERIMENTAL_API
 	m.def("create_barcode", &create_barcode,
 		py::arg("content"),
-		py::arg("format")
+		py::arg("format"),
+		py::arg("ec_level") = ""
 	);
 
 	m.def("write_barcode_to_image", &write_barcode_to_image,
 		py::arg("barcode"),
-		py::arg("scale") = 1,
-		py::arg("add_hrt") = false,
-		py::arg("add_quiet_zones") = true
+		py::arg("size_hint") = 0,
+		py::arg("with_hrt") = false,
+		py::arg("with_quiet_zones") = true
 	);
 
 	m.def("write_barcode_to_svg", &write_barcode_to_svg,
 		py::arg("barcode"),
-		py::arg("scale") = 1,
-		py::arg("add_hrt") = false,
-		py::arg("add_quiet_zones") = true
+		py::arg("size_hint") = 0,
+		py::arg("with_hrt") = false,
+		py::arg("with_quiet_zones") = true
 	);
-
-	py::class_<ImageView>(m, "ImageView", py::buffer_protocol())
-		.def(py::init(&image_view),
-			 py::arg("buffer"),
-			 py::arg("width"),
-			 py::arg("height"),
-			 py::arg("format"),
-			 py::arg("row_stride") = 0,
-			 py::arg("pix_stride") = 0)
-		.def_property_readonly("format", [](const ImageView& iv) { return iv.format(); })
-		.def_buffer([](const ImageView& iv) -> py::buffer_info {
-			return {
-				const_cast<uint8_t*>(iv.data()),                   // Pointer to buffer
-				sizeof(uint8_t),                                   // Size of one scalar
-				py::format_descriptor<uint8_t>::format(),          // Python struct-style format descriptor
-				3,                                                 // Number of dimensions
-				{iv.height(), iv.width(), PixStride(iv.format())}, // Buffer dimensions
-				{iv.rowStride(), iv.pixStride(), 1},               // Strides (in bytes) for each index
-				true                                               // read-only
-			};
-		});
+#endif
 
 	m.attr("Bitmap") = m.attr("Image"); // alias to deprecated name for the Image class
 	m.def("write_barcode", &write_barcode,

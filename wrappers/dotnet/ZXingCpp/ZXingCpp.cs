@@ -6,9 +6,6 @@
 namespace ZXingCpp {
 
 using System;
-#if NETSTANDARD
-using System.Text;
-#endif
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 
@@ -52,7 +49,7 @@ internal class Dll
 	[DllImport(DllName)] public static extern BarcodeFormats ZXing_BarcodeFormatsFromString(string str);
 
 	[DllImport(DllName)] public static extern IntPtr ZXing_ImageView_new(IntPtr data, int width, int height, ImageFormat format, int rowStride, int pixStride);
-	[DllImport(DllName)] public static extern IntPtr ZXing_ImageView_new_checked(ref byte data, int size, int width, int height, ImageFormat format, int rowStride, int pixStride);
+	[DllImport(DllName)] public static extern IntPtr ZXing_ImageView_new_checked(byte[] data, int size, int width, int height, ImageFormat format, int rowStride, int pixStride);
 	[DllImport(DllName)] public static extern void ZXing_ImageView_delete(IntPtr iv);
 
 	[DllImport(DllName)] public static extern void ZXing_Image_delete(IntPtr img);
@@ -71,19 +68,25 @@ internal class Dll
 	[DllImport(DllName)] public static extern void ZXing_CreatorOptions_delete(IntPtr opts);
 	[DllImport(DllName)] public static extern void ZXing_CreatorOptions_setFormat(IntPtr opts, BarcodeFormat format);
 	[DllImport(DllName)] public static extern BarcodeFormat ZXing_CreatorOptions_getFormat(IntPtr opts);
-	[DllImport(DllName)] public static extern void ZXing_CreatorOptions_setOptions(IntPtr opts, string options);
-	[DllImport(DllName)] public static extern IntPtr ZXing_CreatorOptions_getOptions(IntPtr opts);
+	[DllImport(DllName)] public static extern void ZXing_CreatorOptions_setReaderInit(IntPtr opts, bool readerInit);
+	[DllImport(DllName)] [return:MarshalAs(UnmanagedType.I1)] public static extern bool ZXing_CreatorOptions_getReaderInit(IntPtr opts);
+	[DllImport(DllName)] public static extern void ZXing_CreatorOptions_setForceSquareDataMatrix(IntPtr opts, bool forceSquareDataMatrix);
+	[DllImport(DllName)] [return:MarshalAs(UnmanagedType.I1)] public static extern bool ZXing_CreatorOptions_getForceSquareDataMatrix(IntPtr opts);
+	[DllImport(DllName)] public static extern void ZXing_CreatorOptions_setEcLevel(IntPtr opts, string ecLevel);
+	[DllImport(DllName)] public static extern IntPtr ZXing_CreatorOptions_getEcLevel(IntPtr opts);
 
 	[DllImport(DllName)] public static extern IntPtr ZXing_WriterOptions_new();
 	[DllImport(DllName)] public static extern void ZXing_WriterOptions_delete(IntPtr opts);
 	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setScale(IntPtr opts, int scale);
 	[DllImport(DllName)] public static extern int ZXing_WriterOptions_getScale(IntPtr opts);
+	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setSizeHint(IntPtr opts, int sizeHint);
+	[DllImport(DllName)] public static extern int ZXing_WriterOptions_getSizeHint(IntPtr opts);
 	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setRotate(IntPtr opts, int rotate);
 	[DllImport(DllName)] public static extern int ZXing_WriterOptions_getRotate(IntPtr opts);
-	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setAddHRT(IntPtr opts, bool addHRT);
-	[DllImport(DllName)] [return:MarshalAs(UnmanagedType.I1)] public static extern bool ZXing_WriterOptions_getAddHRT(IntPtr opts);
-	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setAddQuietZones(IntPtr opts, bool addQuietZones);
-	[DllImport(DllName)] [return:MarshalAs(UnmanagedType.I1)] public static extern bool ZXing_WriterOptions_getAddQuietZones(IntPtr opts);
+	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setWithHRT(IntPtr opts, bool withHRT);
+	[DllImport(DllName)] [return:MarshalAs(UnmanagedType.I1)] public static extern bool ZXing_WriterOptions_getWithHRT(IntPtr opts);
+	[DllImport(DllName)] public static extern void ZXing_WriterOptions_setWithQuietZones(IntPtr opts, bool withQuietZones);
+	[DllImport(DllName)] [return:MarshalAs(UnmanagedType.I1)] public static extern bool ZXing_WriterOptions_getWithQuietZones(IntPtr opts);
 
 	[DllImport(DllName)] public static extern IntPtr ZXing_CreateBarcodeFromText(string data, int size, IntPtr opts);
 	[DllImport(DllName)] public static extern IntPtr ZXing_CreateBarcodeFromBytes(byte[] data, int size, IntPtr opts);
@@ -122,17 +125,7 @@ internal class Dll
 	public static string MarshalAsString(IntPtr ptr)
 	{
 		ptr = CheckError(ptr, "ZXing C-API returned a NULL char*.");
-#if NET
 		string res = Marshal.PtrToStringUTF8(ptr) ?? "";
-#else
-		string res;
-		unsafe
-		{
-			int length = 0;
-			for (byte* i = (byte*)ptr; *i != 0; i++, length++);
-			res = Encoding.UTF8.GetString((byte*)ptr, length);
-		}
-#endif
 		ZXing_free(ptr);
 		return res;
 	}
@@ -200,9 +193,8 @@ public enum TextMode
 	Plain,   ///< bytes() transcoded to unicode based on ECI info or guessed charset (the default mode prior to 2.0)
 	ECI,     ///< standard content following the ECI protocol with every character set ECI segment transcoded to unicode
 	HRI,     ///< Human Readable Interpretation (dependent on the ContentType)
-	Escaped, ///< Use the EscapeNonGraphical() function (e.g. ASCII 29 will be transcoded to "<GS>")
 	Hex,     ///< bytes() transcoded to ASCII string of HEX values
-	HexECI,  ///< bytesECI() transcoded to ASCII string of HEX values
+	Escaped, ///< Use the EscapeNonGraphical() function (e.g. ASCII 29 will be transcoded to "<GS>")
 };
 
 public enum ContentType { Text, Binary, Mixed, GS1, ISO15434, UnknownECI };
@@ -237,13 +229,8 @@ public class ImageView
 {
 	internal IntPtr _d;
 
-#if NET
-	public ImageView(ReadOnlySpan<byte> data, int width, int height, ImageFormat format, int rowStride = 0, int pixStride = 0)
-		=> _d = CheckError(ZXing_ImageView_new_checked(ref MemoryMarshal.GetReference(data), data.Length, width, height, format, rowStride, pixStride));
-#else
 	public ImageView(byte[] data, int width, int height, ImageFormat format, int rowStride = 0, int pixStride = 0)
-		=> _d = CheckError(ZXing_ImageView_new_checked(ref data[0], data.Length, width, height, format, rowStride, pixStride));
-#endif
+		=> _d = CheckError(ZXing_ImageView_new_checked(data, data.Length, width, height, format, rowStride, pixStride));
 
 	public ImageView(IntPtr data, int width, int height, ImageFormat format, int rowStride = 0, int pixStride = 0)
 		=> _d = CheckError(ZXing_ImageView_new(data, width, height, format, rowStride, pixStride));
@@ -377,16 +364,22 @@ public class CreatorOptions
 
 	~CreatorOptions() => ZXing_CreatorOptions_delete(_d);
 
-	public BarcodeFormat Format
+	public bool ReaderInit
 	{
-		get => ZXing_CreatorOptions_getFormat(_d);
-		set => ZXing_CreatorOptions_setFormat(_d, value);
+		get => ZXing_CreatorOptions_getReaderInit(_d);
+		set => ZXing_CreatorOptions_setReaderInit(_d, value);
 	}
 
-	public String Options
+	public bool ForceSquareDataMatrix
 	{
-		get => MarshalAsString(ZXing_CreatorOptions_getOptions(_d));
-		set => ZXing_CreatorOptions_setOptions(_d, value);
+		get => ZXing_CreatorOptions_getForceSquareDataMatrix(_d);
+		set => ZXing_CreatorOptions_setForceSquareDataMatrix(_d, value);
+	}
+
+	public String ECLevel
+	{
+		get => MarshalAsString(ZXing_CreatorOptions_getEcLevel(_d));
+		set => ZXing_CreatorOptions_setEcLevel(_d, value);
 	}
 
 }
@@ -405,22 +398,28 @@ public class WriterOptions
 		set => ZXing_WriterOptions_setScale(_d, value);
 	}
 
+	public int SizeHint
+	{
+		get => ZXing_WriterOptions_getSizeHint(_d);
+		set => ZXing_WriterOptions_setSizeHint(_d, value);
+	}
+
 	public int Rotate
 	{
 		get => ZXing_WriterOptions_getRotate(_d);
 		set => ZXing_WriterOptions_setRotate(_d, value);
 	}
 
-	public bool AddHRT
+	public bool WithHRT
 	{
-		get => ZXing_WriterOptions_getAddHRT(_d);
-		set => ZXing_WriterOptions_setAddHRT(_d, value);
+		get => ZXing_WriterOptions_getWithHRT(_d);
+		set => ZXing_WriterOptions_setWithHRT(_d, value);
 	}
 
-	public bool AddQuietZones
+	public bool WithQuietZones
 	{
-		get => ZXing_WriterOptions_getAddQuietZones(_d);
-		set => ZXing_WriterOptions_setAddQuietZones(_d, value);
+		get => ZXing_WriterOptions_getWithQuietZones(_d);
+		set => ZXing_WriterOptions_setWithQuietZones(_d, value);
 	}
 }
 
